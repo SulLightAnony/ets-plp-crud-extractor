@@ -4,7 +4,7 @@
 
 Tempel keluaran `python evaluate.py` setelah `data/ground_truth.csv` dilengkapi.
 
-```text
+```keluar kau suki
 
 ```
 
