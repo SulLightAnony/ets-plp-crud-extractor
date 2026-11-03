@@ -70,3 +70,11 @@ def test_parser_left_outer_join():
     assert script.errors == []
     join = script.statements[0].joins[0]
     assert join.kind == "LEFT"
+
+def test_parser_presedensi_and_lebih_tinggi_dari_or():
+    # Bug: AND dan OR sama tingkat. Seharusnya x=1 OR (y=2 AND z=3).
+    script = parse_sql("SELECT a FROM t WHERE x = 1 OR y = 2 AND z = 3")
+    assert script.errors == []
+    where = script.statements[0].where
+    assert where.op == "OR"
+    assert where.right.op == "AND"
