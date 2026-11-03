@@ -95,3 +95,8 @@ def test_parser_left_join_tanpa_outer_dan_huruf_kecil():
         script = parse_sql(sql)
         assert script.errors == []
         assert script.statements[0].joins[0].kind == "LEFT"
+
+def test_parser_dua_error_dengan_statement_valid_di_antaranya():
+    script = parse_sql("SELECT FROM; DELETE FROM a; UPDATE SET; DELETE FROM b;")
+    assert len(script.errors) == 2
+    assert len(script.statements) == 2
