@@ -78,3 +78,11 @@ def test_parser_presedensi_and_lebih_tinggi_dari_or():
     where = script.statements[0].where
     assert where.op == "OR"
     assert where.right.op == "AND"
+
+def test_parser_insert_select_dengan_daftar_kolom():
+    script = parse_sql("INSERT INTO arsip (id, total) SELECT id, total FROM pesanan")
+    assert script.errors == []
+    stmt = script.statements[0]
+    assert isinstance(stmt, ast.Insert)
+    assert stmt.values == []
+    assert isinstance(stmt.query, ast.Select)
