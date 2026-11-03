@@ -64,4 +64,9 @@ def test_parser_left_outer_join():
     join = script.statements[0].joins[0]
     assert join.kind == "LEFT"
 
-    
+def test_parser_left_outer_join():
+    # Bug: LEFT langsung diikuti JOIN, OUTER opsional tidak dikenali.
+    script = parse_sql("SELECT a.id FROM t a LEFT OUTER JOIN u b ON a.id = b.id")
+    assert script.errors == []
+    join = script.statements[0].joins[0]
+    assert join.kind == "LEFT"
