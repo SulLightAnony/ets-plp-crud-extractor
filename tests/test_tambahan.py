@@ -86,3 +86,12 @@ def test_parser_insert_select_dengan_daftar_kolom():
     assert isinstance(stmt, ast.Insert)
     assert stmt.values == []
     assert isinstance(stmt.query, ast.Select)
+
+def test_parser_left_join_tanpa_outer_dan_huruf_kecil():
+    for sql in (
+        "SELECT a.id FROM t a LEFT JOIN u b ON a.id = b.id",
+        "select a.id from t a left outer join u b on a.id = b.id",
+    ):
+        script = parse_sql(sql)
+        assert script.errors == []
+        assert script.statements[0].joins[0].kind == "LEFT"
