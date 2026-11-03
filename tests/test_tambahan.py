@@ -2,6 +2,8 @@
 import pytest
 
 from crud.lexer import LexError, Token, TokenType, tokenize
+from crud import ast_nodes as ast
+from crud.parser import parse_sql
 
 
 def test_lexer_komentar_blok():
@@ -46,3 +48,20 @@ def test_lexer_escaped_quote_string():
     toks = tokenize("'O''Brien'")
     assert len(toks) == 2
     assert toks[0] == Token(TokenType.STRING, "O'Brien", 1, 1)
+
+
+def test_parser_recovery_berhenti_di_titik_koma():
+    # Bug: _synchronize membuang token sampai EOF, statement valid ikut hilang.
+    script = parse_sql("SELECT FROM; DELETE FROM sesi;")
+    assert len(script.errors) == 1
+    assert len(script.statements) == 1
+    assert isinstance(script.statements[0], ast.Delete)
+
+def test_parser_left_outer_join():
+    # Bug: LEFT langsung diikuti JOIN, OUTER opsional tidak dikenali.
+    script = parse_sql("SELECT a.id FROM t a LEFT OUTER JOIN u b ON a.id = b.id")
+    assert script.errors == []
+    join = script.statements[0].joins[0]
+    assert join.kind == "LEFT"
+
+    
