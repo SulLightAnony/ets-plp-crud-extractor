@@ -67,7 +67,7 @@ AI membantu menambahkan cabang self._match(">") pada blok kondisi leksikal. Dive
 
 ## Bug 3: String Literal dengan Escaped Single Quote ('') Terpotong Prematur
 
-**Ditemukan oleh:** (nama) · **Diperbaiki oleh:** (nama)
+**Ditemukan oleh:** Sulthan Faazaa Akbar Riyandoro · **Diperbaiki oleh:** Sulthan Faazaa Akbar Riyandoro
 
 **Gejala.** Input, output yang didapat, dan output yang diharapkan menurut SPESIFIKASI.md
 (sebutkan bagiannya).
@@ -80,7 +80,7 @@ SELECT * FROM crm.pelanggan WHERE nama = 'O''Brien';
 ```
 
 **Akar masalah.** Mengapa kode lama salah? Konsep apa yang dilanggar?
-Mengacu pada Crafting Interpreters Bab 4, pemindai literal string harus membedakan antara tanda petik penutup string (delimiter) dengan tanda petik yang merupakan bagian dari data (escape sequence). Kode lama langsung mengeksekusi break begitu menemukan karakter ' pertama tanpa melihat satu karakter ke depan (lookahead), sehingga mengakhiri pemindaian string secara prematur.
+Mengacu pada Crafting Interpreters Bab 4, pemindai literal string harus membedakan antara tanda petik penutup string dengan tanda petik yang merupakan bagian dari data. Kode lama langsung mengeksekusi break begitu menemukan karakter ' pertama tanpa melihat satu karakter ke depan, sehingga mengakhiri pemindaian string secara prematur.
 
 **Perbaikan.** File dan fungsi yang diubah, serta alasannya. Sebutkan juga perbaikan
 alternatif yang kalian pertimbangkan dan alasan tidak memilihnya.
@@ -102,7 +102,7 @@ AI membantu merestrukturisasi loop _string() agar melakukan penelusuran satu kar
 
 **Gejala.** Input, output yang didapat, dan output yang diharapkan menurut SPESIFIKASI.md
 (sebutkan bagiannya).
-Pada query bersarang (subquery) di mana alias tabel pada subquery sama dengan alias pada query luar, resolusi kolom di dalam subquery salah terhubung ke tabel pada scope terluar alih-alih tabel lokal subquery. Menurut SPESIFIKASI.md bagian 4.3, qualifier kolom wajib dicari mulai dari scope terdalam ke luar sehingga alias di subquery menutupi (shadowing) alias yang sama di luar dan mendukung correlated subquery.
+Pada query bersarang di mana alias tabel pada subquery sama dengan alias pada query luar, resolusi kolom di dalam subquery salah terhubung ke tabel pada scope terluar alih-alih tabel lokal subquery. Menurut SPESIFIKASI.md bagian 4.3, qualifier kolom wajib dicari mulai dari scope terdalam ke luar sehingga alias di subquery menutupi alias yang sama di luar dan mendukung correlated subquery.
 
 **Reproduksi minimal.** SQL terpendek yang memicu bug:
 
@@ -111,11 +111,11 @@ SELECT t.nama FROM pelanggan t WHERE t.id IN (SELECT t.id FROM pesanan t);
 ```
 
 **Akar masalah.** Mengapa kode lama salah? Konsep apa yang dilanggar?
-Mengacu pada Crafting Interpreters Bab 11 (Resolving and Binding), penelusuran lingkungan leksikal (lexical scope chain lookup) harus bergerak dari lingkungan saat ini (innermost scope) merambat keluar menuju lingkungan pembungkusnya (parent/enclosing scope) hingga mencapai root environment. Pada fungsi `_lookup()` di `crud/resolver.py`, kode lama mengumpulkan rantai scope dari `self.scope` ke `parent` ke dalam list `chain`, namun kemudian mengiterasinya dengan `reversed(chain)` (dari scope terluar ke terdalam). Akibatnya, deklarasi pada outer scope selalu diprioritaskan dan menutupi deklarasi pada inner scope, yang membalik aturan shadowing dan melanggar prinsip dasar lexical scoping.
+Mengacu pada Crafting Interpreters Bab 11, penelusuran lingkungan leksikal harus bergerak dari lingkungan saat ini merambat keluar menuju lingkungan pembungkusnya hingga mencapai root environment. Pada fungsi `_lookup()` di `crud/resolver.py`, kode lama mengumpulkan rantai scope dari `self.scope` ke `parent` ke dalam list `chain`, namun kemudian mengiterasinya dengan `reversed(chain)` (dari scope terluar ke terdalam). Akibatnya, deklarasi pada outer scope selalu diprioritaskan dan menutupi deklarasi pada inner scope, yang membalik aturan shadowing dan melanggar prinsip dasar lexical scoping.
 
 **Perbaikan.** File dan fungsi yang diubah, serta alasannya. Sebutkan juga perbaikan
 alternatif yang kalian pertimbangkan dan alasan tidak memilihnya.
-Pada fungsi `_lookup()` di `crud/resolver.py`, list `chain` dan pembalikan `reversed(chain)` dihapus. Logika diganti dengan traversal langsung mulai dari `self.scope` berjalan ke `scope.parent` menggunakan loop `while scope is not None:`. Jika `name` ditemukan di `scope.entries`, fungsi langsung mengembalikan entri tersebut (innermost-to-outermost). Alternatif mempertahankan pengumpulan rantai list tanpa memanggil `reversed()` ditolak karena iterasi langsung pointer `parent` lebih sederhana, efisien, dan hemat alokasi memori.
+Pada fungsi `_lookup()` di `crud/resolver.py`, list `chain` dan pembalikan `reversed(chain)` dihapus. Logika diganti dengan traversal langsung mulai dari `self.scope` berjalan ke `scope.parent` menggunakan loop `while scope is not None:`. Jika `name` ditemukan di `scope.entries`, fungsi langsung mengembalikan entri tersebut. Alternatif mempertahankan pengumpulan rantai list tanpa memanggil `reversed()` ditolak karena iterasi langsung pointer `parent` lebih sederhana, efisien, dan hemat alokasi memori.
 
 **Test regresi.** Nama test di `tests/test_tambahan.py` yang gagal sebelum perbaikan dan lulus
 sesudahnya.
@@ -143,7 +143,7 @@ SELECT p.nama FROM pesanan o;
 ```
 
 **Akar masalah.** Mengapa kode lama salah? Konsep apa yang dilanggar?
-Mengacu pada Crafting Interpreters Bab 11 (Resolving and Binding - Scope Lifecycle), setiap blok yang membuka lingkup leksikal lokal melalui operasi `push()` wajib menutup dan menghancurkan lingkup tersebut melalui operasi `pop()` ketika keluar dari blok lingkup tersebut. Pada fungsi `_delete()` di `crud/resolver.py`, `self._push()` dipanggil untuk mendaftarkan target tabel DELETE, namun fungsi berakhir tanpa memanggil `self._pop()`. Ketiadaan `self._pop()` ini menyebabkan scope leak di mana scope lokal DELETE tetap aktif sebagai scope teratas pada resolver dan mencemari environment statement SQL selanjutnya.
+Mengacu pada Crafting Interpreters Bab 11, setiap blok yang membuka lingkup leksikal lokal melalui operasi `push()` wajib menutup dan menghancurkan lingkup tersebut melalui operasi `pop()` ketika keluar dari blok lingkup tersebut. Pada fungsi `_delete()` di `crud/resolver.py`, `self._push()` dipanggil untuk mendaftarkan target tabel DELETE, namun fungsi berakhir tanpa memanggil `self._pop()`. Ketiadaan `self._pop()` ini menyebabkan scope leak di mana scope lokal DELETE tetap aktif sebagai scope teratas pada resolver dan mencemari environment statement SQL selanjutnya.
 
 **Perbaikan.** File dan fungsi yang diubah, serta alasannya. Sebutkan juga perbaikan
 alternatif yang kalian pertimbangkan dan alasan tidak memilihnya.
