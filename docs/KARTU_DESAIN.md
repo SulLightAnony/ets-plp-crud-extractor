@@ -10,10 +10,10 @@ alternatif yang ditolak dan alasannya. Contoh topik (boleh memilih yang lain):
 - mengapa kolom tanpa qualifier hanya dilihat di scope terdalam, dan apa kelemahannya;
 - bagaimana implementasi `INSERT ... SELECT` atau komentar blok kalian.
 
-| No | Keputusan | Alternatif yang ditolak | Alasan |
-| --- | --- | --- | --- |
-| 1 | | | |
-| 2 | | | |
-| 3 | | | |
-| 4 | | | |
-| 5 | | | |
+| No  | Keputusan                                                                                   | Alternatif yang ditolak                                              | Alasan                                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   |                                                                                             |                                                                      |                                                                                                                                                  |
+| 2   |                                                                                             |                                                                      |                                                                                                                                                  |
+| 3   |                                                                                             |                                                                      |                                                                                                                                                  |
+| 4   | Urutan pencarian scope dari terdalam ke luar (Innermost to Outermost Scope Chain).          | Pencarian satu arah terluar ke terdalam atau flat global dictionary. | Memungkinkan shadowing alias lokal dan mendukung correlated subquery.                                                                            |
+| 5   | Pembatasan resolusi kolom tanpa qualifier hanya pada scope terdalam (Innermost Scope Only). | Mencari kolom tanpa qualifier ke scope induk (outer scopes).         | Menghindari resolusi sembrono tanpa kepastian skema database fisik (schema-less static analyzer) dan konsisten dengan aturan SPESIFIKASI.md 4.3. |
