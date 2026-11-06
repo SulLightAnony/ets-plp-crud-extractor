@@ -213,3 +213,130 @@ sesudahnya.
 
 **Peran AI.** Apakah AI membantu menemukan atau memperbaiki bug ini? Bagaimana kalian
 memverifikasinya?
+
+## Bug 8: Error Recovery `_synchronize` Membuang Semua Token sampai EOF
+
+**Ditemukan oleh:** Syahid Azzam Alkaf · **Diperbaiki oleh:** Syahid Azzam Alkaf (commit `dd4f93b`)
+
+**Gejala.** Setelah satu statement gagal di-parse, parser tidak memproses satu pun statement sesudahnya. Pada `SELECT FROM; DELETE FROM sesi;` parser melaporkan 1 error (benar), tetapi `DELETE FROM sesi` ikut hilang sehingga hasilnya 0 statement. Menurut SPESIFIKASI.md bagian 6, setelah error token dibuang sampai dan termasuk `;` berikutnya, lalu statement setelahnya tetap diproses. Dampak pada data sampel: pada `campuran_error.sql`, error di baris 4 membuat `UPDATE produk` (baris 6) dan `DELETE FROM keranjang` (baris 8) tidak masuk CRUD matrix.
+
+**Reproduksi minimal.** SQL terpendek yang memicu bug:
+
+```sql
+SELECT FROM; DELETE FROM sesi;
+```
+
+**Akar masalah.**
+
+
+tujuan error recovery adalah untuk walaupun terjadi error di suatu query, sebaiknya query setelahnya dilanjutkan dan tetap di proses
+
+kode sebelumnya belum memenuhi kriteria tsb karena statement setelahnya tidak diproses
+
+di sql titik amannya yaitu ; karena itu adalah titik akhir query selesai dijalankan
+
+**Perbaikan.** Pada `crud/parser.py`, fungsi `_synchronize()`. Loop lama hanya memanggil `self._advance()` sampai `_at_end()`. Sekarang token yang dibuang diperiksa dan fungsi berhenti setelah `;` terbuang:
+
+```python
+# sebelum
+while not self._at_end():
+    self._advance()
+
+# sesudah
+while not self._at_end():
+    if self._advance().type == T.SEMICOLON:
+        return
+```
+
+
+apabila berhentinya di awal query seperti INSERT dan UPDATE maka akan beberapa case seperti SELECT di dalam query UPDATE yang dianggap sebagau statement baru, padahal seharusnya masih dalam satu statement
+
+**Test regresi.** `test_parser_recovery_berhenti_di_titik_koma` dan `test_parser_dua_error_dengan_statement_valid_di_antaranya` di `tests/test_tambahan.py`. Keduanya gagal pada kode sebelum commit `dd4f93b` dan lulus sesudahnya.
+
+**Peran AI.**
+
+
+membuat kode test, saya melakukan pytest untuk mengetes apakah statement yang ditest memenuhi kriterianya atau tidak
+
+---
+
+## Bug 9: `LEFT OUTER JOIN` Ditolak Parser karena `OUTER` Opsional Tidak Dikenali
+
+**Ditemukan oleh:** Syahid Azzam Alkaf · **Diperbaiki oleh:** Syahid Azzam Alkaf (commit `95ea76a`)
+
+**Gejala.** `LEFT OUTER JOIN` menghasilkan `ParseError`: `Baris 1, kolom 24: diharapkan JOIN, ditemukan 'OUTER'`, dan seluruh statement dibuang. Menurut SPESIFIKASI.md bagian 3, grammar mendukung `LEFT [ OUTER ] JOIN`. `LEFT JOIN` tanpa `OUTER` sudah berjalan sebelum perbaikan. Dampak pada data sampel: statement `select ... left outer join crm.alamat` di `pemeliharaan.sql` baris 3 gagal diproses, sehingga `crm.pelanggan` dan `crm.alamat` hilang dari CRUD matrix.
+
+**Reproduksi minimal.** SQL terpendek yang memicu bug:
+
+```sql
+SELECT a.x FROM a LEFT OUTER JOIN b ON a.id = b.id;
+```
+
+**Akar masalah.**
+
+
+
+sebelumnya kode langsung menganggap setelah LEFT itu wajib langsung JOIN dengan mengabaikan OUTER, OUTER sebenarnya dapat dibuat menjadi concatination yang dapat di check dulu
+
+**Perbaikan.** Pada `crud/parser.py`, fungsi `_join()`, cabang `LEFT`, ditambahkan satu baris sebelum `self._expect_kw("JOIN")`:
+
+```python
+elif self._match_kw("LEFT"):
+    kind = "LEFT"
+    self._match_kw("OUTER")   # OUTER opsional: dimakan kalau ada, diabaikan kalau tidak
+```
+
+.
+
+
+
+**Test regresi.** `test_parser_left_outer_join` dan `test_parser_left_join_tanpa_outer_dan_huruf_kecil` di `tests/test_tambahan.py`. Keduanya gagal pada kode sebelum commit `95ea76a` dan lulus sesudahnya.
+
+**Peran AI.**
+
+
+
+ai menulis semua kode test dan saya hanya menguji dan melihatnya
+
+---
+
+## Bug 10: `AND` dan `OR` Berada pada Tingkat Presedensi yang Sama
+
+**Ditemukan oleh:** Syahid Azzam Alkaf · **Diperbaiki oleh:** Syahid Azzam Alkaf (commit `46717d3`)
+
+**Gejala.** Pada `a = 1 OR b = 2 AND c = 3`, parser lama membentuk pohon `(a = 1 OR b = 2) AND c = 3`, padahal yang benar `a = 1 OR (b = 2 AND c = 3)`. Menurut SPESIFIKASI.md bagian 3 dan 3.1, `AND` (tingkat 2) mengikat lebih kuat daripada `OR` (tingkat 1). Bug ini **tidak mengubah CRUD matrix** karena daftar tabelnya sama, sehingga hanya terlihat pada pohon (`python -m crud.cli FILE --ast`), misalnya pada `audit.sql` baris 4-6. Tetap bug karena melanggar spesifikasi.
+
+**Reproduksi minimal.** SQL terpendek yang memicu bug:
+
+```sql
+SELECT x FROM t WHERE a = 1 OR b = 2 AND c = 3;
+```
+
+**Akar masalah.**
+
+
+
+karena pada kode yang lama, parser.py menuliskan operasi yang mendahulukan operand or dibandingkan and, padahal and itu lebih prioritas seharusnya
+
+**Perbaikan.** Pada `crud/parser.py`, fungsi `_logical()` dipecah menjadi dua fungsi, satu per tingkat presedensi, dan `_expr()` kini memanggil `_or_expr()`:
+
+```python
+def _or_expr(self):
+    left = self._and_expr()
+    while self._match_kw("OR"):
+        left = ast.BinaryOp(left, "OR", self._and_expr())
+    return left
+
+def _and_expr(self):
+    left = self._not()
+    while self._match_kw("AND"):
+        left = ast.BinaryOp(left, "AND", self._not())
+    return left
+```
+
+
+**Test regresi.** `test_parser_presedensi_and_lebih_tinggi_dari_or` di `tests/test_tambahan.py`. Gagal pada kode sebelum commit `46717d3` dan lulus sesudahnya.
+
+**Peran AI.**
+
+ai menulis semua kode test dan saya hanya menguji dan melihatnya
